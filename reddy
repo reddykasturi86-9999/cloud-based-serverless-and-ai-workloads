@@ -1,0 +1,465 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Serverless + AI Workloads</title>
+  <style>
+    :root {
+      --bg: #f0f2f5;
+      --card: #ffffff;
+      --text: #1a1a2e;
+      --muted: #6b7280;
+      --border: #e5e7eb;
+      --accent: #3b82f6;
+      --result-bg: #f8fafc;
+      --result-text: #166534;
+    }
+
+    body.dark {
+      --bg: #0f172a;
+      --card: #1e293b;
+      --text: #e2e8f0;
+      --muted: #94a3b8;
+      --border: #334155;
+      --accent: #60a5fa;
+      --result-bg: #0f172a;
+      --result-text: #86efac;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+      padding: 20px;
+      transition: background 0.3s, color 0.3s;
+    }
+
+    .container { max-width: 820px; margin: 0 auto; }
+
+    /* ---------- Overlays ---------- */
+    .overlay {
+      position: fixed; inset: 0;
+      background: rgba(0,0,0,0.6);
+      display: none; align-items: center; justify-content: center;
+      z-index: 1000;
+    }
+    .overlay.show { display: flex; }
+
+    .modal-card {
+      width: 100%; max-width: 380px;
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 26px;
+      box-shadow: 0 15px 40px rgba(0,0,0,0.35);
+    }
+    .modal-card h2 { margin-bottom: 6px; font-size: 1.3rem; }
+    .modal-card p { color: var(--muted); font-size: 0.85rem; margin-bottom: 16px; }
+
+    .field { margin-bottom: 14px; }
+    .field label { display: block; font-size: 0.85rem; margin-bottom: 5px; }
+    .field input {
+      width: 100%; padding: 10px 12px;
+      border: 1px solid var(--border); border-radius: 8px;
+      background: var(--card); color: var(--text); font-size: 0.95rem;
+    }
+    .field input:focus { outline: none; border-color: var(--accent); }
+
+    .btn {
+      width: 100%; padding: 11px; border: none; border-radius: 8px;
+      background: var(--accent); color: #fff; font-size: 1rem;
+      cursor: pointer; font-weight: 600;
+    }
+    .btn:hover { filter: brightness(0.92); }
+
+    .switch-text { text-align: center; margin-top: 14px; font-size: 0.85rem; color: var(--muted); }
+    .switch-text a { color: var(--accent); cursor: pointer; text-decoration: none; }
+    .error-msg { color: #dc2626; font-size: 0.8rem; margin-top: 8px; min-height: 16px; }
+
+    /* ---------- Header ---------- */
+    .header {
+      display: flex; align-items: center; justify-content: space-between;
+      flex-wrap: wrap; gap: 10px; margin-bottom: 20px;
+    }
+    .header h1 { font-size: 1.4rem; }
+    .header .sub { color: var(--muted); font-size: 0.85rem; }
+
+    .header-actions { display: flex; gap: 6px; }
+    .icon-btn {
+      padding: 7px 11px; border: 1px solid var(--border); border-radius: 8px;
+      background: var(--card); color: var(--text); cursor: pointer; font-size: 0.8rem;
+    }
+    .icon-btn:hover { border-color: var(--accent); }
+
+    /* ---------- Cards ---------- */
+    .card {
+      background: var(--card); border: 1px solid var(--border);
+      border-radius: 12px; padding: 18px; margin-bottom: 16px;
+      transition: background 0.3s, border-color 0.3s;
+    }
+    .card h2 { font-size: 1rem; margin-bottom: 10px; color: var(--accent); }
+
+    textarea, input[type="text"] {
+      width: 100%; padding: 10px; border-radius: 8px;
+      border: 1px solid var(--border); background: var(--card);
+      color: var(--text); font-size: 0.9rem; font-family: inherit;
+    }
+    textarea { min-height: 80px; resize: vertical; }
+    input[type="text"] { margin-bottom: 8px; }
+
+    .card button {
+      margin-top: 10px; padding: 9px 16px; border: none; border-radius: 8px;
+      background: var(--accent); color: #fff; cursor: pointer; font-weight: 600;
+    }
+    .card button:hover { filter: brightness(0.92); }
+
+    .result {
+      margin-top: 12px; padding: 10px; border-radius: 8px;
+      background: var(--result-bg); border: 1px solid var(--border);
+      font-size: 0.88rem; white-space: pre-wrap; min-height: 20px;
+      color: var(--result-text); position: relative;
+    }
+    .copy-btn {
+      position: absolute; top: 6px; right: 6px; font-size: 0.7rem;
+      padding: 3px 8px; border: none; border-radius: 6px;
+      background: var(--accent); color: #fff; cursor: pointer;
+    }
+
+    .badge {
+      display: inline-block; font-size: 0.7rem; padding: 2px 8px;
+      border-radius: 10px; background: var(--border); margin-left: 8px;
+      vertical-align: middle; color: var(--muted);
+    }
+
+    /* ---------- Log ---------- */
+    .log-box {
+      background: var(--result-bg); border: 1px solid var(--border);
+      border-radius: 8px; padding: 10px; font-family: monospace;
+      font-size: 0.8rem; max-height: 180px; overflow-y: auto;
+    }
+    .log-line { margin-bottom: 4px; color: var(--muted); }
+    .log-line b { color: var(--accent); }
+
+    .counter { color: var(--muted); font-size: 0.78rem; margin-top: 8px; }
+  </style>
+</head>
+<body>
+
+  <!-- ===== LOGIN ===== -->
+  <div class="overlay show" id="loginOverlay">
+    <div class="modal-card">
+      <h2>Login</h2>
+      <p>Sign in to use the serverless AI platform. New here? Register below.</p>
+      <form id="loginForm">
+        <div class="field"><label>Username</label><input type="text" id="loginUser" required /></div>
+        <div class="field"><label>Password</label><input type="password" id="loginPass" required /></div>
+        <button class="btn" type="submit">Login</button>
+        <div class="error-msg" id="loginError"></div>
+      </form>
+      <p class="switch-text">Don't have an account? <a onclick="showRegister()">Register</a></p>
+    </div>
+  </div>
+
+  <!-- ===== REGISTER ===== -->
+  <div class="overlay" id="registerOverlay">
+    <div class="modal-card">
+      <h2>Create Account</h2>
+      <p>Choose a username and password.</p>
+      <form id="registerForm">
+        <div class="field"><label>Username</label><input type="text" id="regUser" required /></div>
+        <div class="field"><label>Password</label><input type="password" id="regPass" placeholder="Min 4 characters" required /></div>
+        <div class="field"><label>Confirm Password</label><input type="password" id="regPass2" required /></div>
+        <button class="btn" type="submit">Register</button>
+        <div class="error-msg" id="regError"></div>
+      </form>
+      <p class="switch-text">Already have an account? <a onclick="showLogin()">Login</a></p>
+    </div>
+  </div>
+
+  <!-- ===== CHANGE PASSWORD ===== -->
+  <div class="overlay" id="passOverlay">
+    <div class="modal-card">
+      <h2>Change Password</h2>
+      <p>Enter your current and new password.</p>
+      <form id="passForm">
+        <div class="field"><label>Current Password</label><input type="password" id="curPass" required /></div>
+        <div class="field"><label>New Password</label><input type="password" id="newPass" placeholder="Min 4 characters" required /></div>
+        <div class="field"><label>Confirm New Password</label><input type="password" id="newPass2" required /></div>
+        <button class="btn" type="submit">Update Password</button>
+        <div class="error-msg" id="passError"></div>
+      </form>
+      <p class="switch-text"><a onclick="closeOverlay('passOverlay')">Cancel</a></p>
+    </div>
+  </div>
+
+  <!-- ===== MAIN APP ===== -->
+  <div class="container">
+    <div class="header">
+      <div>
+        <h1>⚡ Serverless + AI Workloads</h1>
+        <div class="sub" id="userLabel">Not logged in</div>
+      </div>
+      <div class="header-actions">
+        <button class="icon-btn" id="themeBtn">🌙</button>
+        <button class="icon-btn" id="clearResultsBtn">🧹 Clear</button>
+        <button class="icon-btn" id="passBtn">🔑</button>
+        <button class="icon-btn" id="logoutBtn">🚪</button>
+      </div>
+    </div>
+
+    <!-- Sentiment -->
+    <div class="card">
+      <h2>😊 Sentiment Analysis <span class="badge">sentiment</span></h2>
+      <textarea id="sentText" placeholder="Enter text to analyze..."></textarea>
+      <button onclick="invoke('sentiment')">Analyze</button>
+      <div class="result" id="sentResult"><button class="copy-btn" onclick="copyResult('sentResult')">Copy</button></div>
+      <div class="counter" id="sentCount"></div>
+    </div>
+
+    <!-- Summarize -->
+    <div class="card">
+      <h2>📄 Summarize <span class="badge">summarize</span></h2>
+      <textarea id="sumText" placeholder="Paste a long paragraph..."></textarea>
+      <button onclick="invoke('summarize')">Summarize</button>
+      <div class="result" id="sumResult"><button class="copy-btn" onclick="copyResult('sumResult')">Copy</button></div>
+      <div class="counter" id="sumCount"></div>
+    </div>
+
+    <!-- Keywords -->
+    <div class="card">
+      <h2>🔑 Keyword Extraction <span class="badge">keywords</span></h2>
+      <textarea id="kwText" placeholder="Enter text to extract keywords from..."></textarea>
+      <button onclick="invoke('keywords')">Extract</button>
+      <div class="result" id="kwResult"><button class="copy-btn" onclick="copyResult('kwResult')">Copy</button></div>
+      <div class="counter" id="kwCount"></div>
+    </div>
+
+    <!-- Chatbot -->
+    <div class="card">
+      <h2>🤖 AI Chat <span class="badge">chatbot</span></h2>
+      <input type="text" id="chatMsg" placeholder="Ask the AI anything..." />
+      <button onclick="invoke('chatbot')">Send</button>
+      <div class="result" id="chatResult"><button class="copy-btn" onclick="copyResult('chatResult')">Copy</button></div>
+    </div>
+
+    <!-- Invocation log -->
+    <div class="card">
+      <h2>📜 Invocation Log</h2>
+      <div class="log-box" id="logBox"><div class="log-line">— no invocations yet —</div></div>
+    </div>
+  </div>
+
+  <script>
+    // ================= STATE =================
+    let currentUser = null;
+    const logLines = [];
+
+    // ================= HELPERS =================
+    const $ = id => document.getElementById(id);
+
+    function getUsers() { return JSON.parse(localStorage.getItem('sai_users') || '{}'); }
+    function saveUsers(u) { localStorage.setItem('sai_users', JSON.stringify(u)); }
+
+    function showOverlay(id) { $(id).classList.add('show'); }
+    function closeOverlay(id) { $(id).classList.remove('show'); }
+
+    function escapeHtml(s) {
+      return String(s).replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('>','&gt;').replaceAll('"','&quot;');
+    }
+
+    // ================= THEME =================
+    function loadTheme() {
+      const dark = localStorage.getItem('sai_theme') === 'dark';
+      document.body.classList.toggle('dark', dark);
+      $('themeBtn').textContent = dark ? '☀️' : '🌙';
+    }
+    $('themeBtn').addEventListener('click', () => {
+      const dark = document.body.classList.toggle('dark');
+      localStorage.setItem('sai_theme', dark ? 'dark' : 'light');
+      $('themeBtn').textContent = dark ? '☀️' : '🌙';
+    });
+
+    // ================= AUTH =================
+    function showLogin() { closeOverlay('registerOverlay'); showOverlay('loginOverlay'); }
+    function showRegister() { closeOverlay('loginOverlay'); showOverlay('registerOverlay'); }
+
+    $('loginForm').addEventListener('submit', (e) => {
+      e.preventDefault();
+      const user = $('loginUser').value.trim();
+      const pass = $('loginPass').value;
+      const users = getUsers();
+      $('loginError').textContent = '';
+      if (!users[user]) { $('loginError').textContent = 'User not found. Please register.'; return; }
+      if (users[user] !== pass) { $('loginError').textContent = 'Incorrect password.'; return; }
+      currentUser = user;
+      localStorage.setItem('sai_session', user);
+      enterApp();
+    });
+
+    $('registerForm').addEventListener('submit', (e) => {
+      e.preventDefault();
+      const user = $('regUser').value.trim();
+      const pass = $('regPass').value;
+      const pass2 = $('regPass2').value;
+      const users = getUsers();
+      $('regError').textContent = '';
+      if (users[user]) { $('regError').textContent = 'Username already exists.'; return; }
+      if (pass.length < 4) { $('regError').textContent = 'Password must be at least 4 characters.'; return; }
+      if (pass !== pass2) { $('regError').textContent = 'Passwords do not match.'; return; }
+      users[user] = pass;
+      saveUsers(users);
+      currentUser = user;
+      localStorage.setItem('sai_session', user);
+      enterApp();
+    });
+
+    $('passForm').addEventListener('submit', (e) => {
+      e.preventDefault();
+      const cur = $('curPass').value;
+      const np = $('newPass').value;
+      const np2 = $('newPass2').value;
+      const users = getUsers();
+      $('passError').textContent = '';
+      if (users[currentUser] !== cur) { $('passError').textContent = 'Current password is incorrect.'; return; }
+      if (np.length < 4) { $('passError').textContent = 'New password must be at least 4 characters.'; return; }
+      if (np !== np2) { $('passError').textContent = 'New passwords do not match.'; return; }
+      users[currentUser] = np;
+      saveUsers(users);
+      closeOverlay('passOverlay');
+      $('curPass').value = $('newPass').value = $('newPass2').value = '';
+    });
+
+    $('passBtn').addEventListener('click', () => showOverlay('passOverlay'));
+
+    $('logoutBtn').addEventListener('click', () => {
+      currentUser = null;
+      localStorage.removeItem('sai_session');
+      $('loginUser').value = '';
+      $('loginPass').value = '';
+      showOverlay('loginOverlay');
+    });
+
+    function enterApp() {
+      closeOverlay('loginOverlay');
+      closeOverlay('registerOverlay');
+      $('userLabel').textContent = `Logged in as: ${currentUser}`;
+      addLog('session', 'User logged in');
+    }
+
+    // ================= SIMULATED SERVERLESS FUNCTIONS =================
+    function sentiment(text) {
+      const positive = ["good","great","happy","love","excellent","amazing","nice","awesome"];
+      const negative = ["bad","sad","hate","terrible","awful","worst","poor","angry"];
+      const t = text.toLowerCase();
+      const pos = positive.filter(w => t.includes(w)).length;
+      const neg = negative.filter(w => t.includes(w)).length;
+      const label = pos > neg ? "positive" : (neg > pos ? "negative" : "neutral");
+      return { label, score: pos - neg };
+    }
+
+    function summarize(text) {
+      const sentences = text.replace(/\n/g, " ").split(/[.!?]/).map(s => s.trim()).filter(Boolean);
+      const summary = sentences.slice(0, 2).join(". ") + ".";
+      return { summary };
+    }
+
+    function keywords(text) {
+      const stop = new Set(["the","a","an","and","or","but","of","to","in","is","are","was","were","for","on","with","as","at","by","this","that"]);
+      const words = text.toLowerCase().match(/[a-zA-Z']+/g) || [];
+      const filtered = words.filter(w => w.length > 2 && !stop.has(w));
+      const freq = {};
+      filtered.forEach(w => freq[w] = (freq[w] || 0) + 1);
+      const top = Object.entries(freq).sort((a,b) => b[1]-a[1]).slice(0,5).map(e => e[0]);
+      return { keywords: top };
+    }
+
+    function chatbot(msg) {
+      const t = msg.toLowerCase();
+      if (t.includes("hello") || t.includes("hi")) return { reply: "Hello! 👋 I'm your serverless AI assistant." };
+      if (t.includes("name")) return { reply: `I'm the serverless AI bot, helping ${currentUser}.` };
+      if (t.includes("help")) return { reply: "Try the sentiment, summarize, or keywords functions above — or ask me anything!" };
+      if (t.includes("bye")) return { reply: "Goodbye! 👋" };
+      return { reply: `🤖 (offline demo) I received: "${msg}". Connect this UI to a real AI backend for live responses.` };
+    }
+
+    // ================= INVOKE =================
+    function invoke(name) {
+      const inputMap = { sentiment: 'sentText', summarize: 'sumText', keywords: 'kwText', chatbot: 'chatMsg' };
+      const resultMap = { sentiment: 'sentResult', summarize: 'sumResult', keywords: 'kwResult', chatbot: 'chatResult' };
+      const input = $(inputMap[name]).value.trim();
+      const resultEl = $(resultMap[name]);
+
+      if (!input) { resultEl.innerHTML = '⚠️ Please enter some text.'; return; }
+
+      resultEl.innerHTML = '<span style="color:var(--muted)">⏳ Invoking serverless function...</span>';
+      addLog(name, 'invoked');
+
+      // Simulate async serverless latency
+      setTimeout(() => {
+        let output;
+        if (name === 'sentiment') output = sentiment(input);
+        else if (name === 'summarize') output = summarize(input);
+        else if (name === 'keywords') output = keywords(input);
+        else output = chatbot(input);
+
+        resultEl.innerHTML = `<button class="copy-btn" onclick="copyResult('${resultMap[name]}')">Copy</button>` + escapeHtml(JSON.stringify(output, null, 2));
+        addLog(name, 'completed');
+      }, 500 + Math.random() * 500);
+    }
+
+    // ================= COPY =================
+    function copyResult(id) {
+      const el = $(id);
+      const text = el.textContent.replace('Copy', '').trim();
+      navigator.clipboard.writeText(text).then(() => {
+        el.style.outline = '2px solid var(--accent)';
+        setTimeout(() => el.style.outline = 'none', 800);
+      });
+    }
+
+    // ================= LOG =================
+    function addLog(fn, action) {
+      const time = new Date().toLocaleTimeString();
+      logLines.unshift({ time, fn, action });
+      renderLog();
+    }
+    function renderLog() {
+      const box = $('logBox');
+      box.innerHTML = logLines.length
+        ? logLines.map(l => `<div class="log-line">[${l.time}] <b>${escapeHtml(l.fn)}</b> — ${escapeHtml(l.action)}</div>`).join('')
+        : '<div class="log-line">— no invocations yet —</div>';
+    }
+    $('clearResultsBtn').addEventListener('click', () => {
+      ['sentResult','sumResult','kwResult','chatResult'].forEach(id => $(id).innerHTML = '<button class="copy-btn" onclick="copyResult(\'' + id + '\')">Copy</button>');
+      logLines.length = 0;
+      renderLog();
+    });
+
+    // ================= COUNTERS =================
+    ['sentText','sumText','kwText'].forEach(id => {
+      $(id).addEventListener('input', () => {
+        const text = $(id).value;
+        const words = text.trim() ? text.trim().split(/\s+/).length : 0;
+        $(id + 'Count').textContent = `${words} words · ${text.length} chars`;
+      });
+    });
+
+    // ================= INIT =================
+    function init() {
+      loadTheme();
+      const session = localStorage.getItem('sai_session');
+      if (session && getUsers()[session]) {
+        currentUser = session;
+        enterApp();
+      } else {
+        showOverlay('loginOverlay');
+      }
+    }
+    init();
+  </script>
+</body>
+</html>
